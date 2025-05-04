@@ -1,20 +1,95 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Ionicons } from '@expo/vector-icons';
+import { AuthProvider } from './context/AuthContext';
 
-export default function App() {
+// Screens
+import LoginScreen from './screens/LoginScreen';
+import RegisterScreen from './screens/RegisterScreen';
+import HomeScreen from './screens/HomeScreen';
+import WorkoutPlansScreen from './screens/WorkoutPlansScreen';
+import WorkoutDetailScreen from './screens/WorkoutDetailScreen';
+import ProfileScreen from './screens/ProfileScreen';
+import ProgressScreen from './screens/ProgressScreen';
+import LogWeightScreen from './screens/LogWeightScreen';
+import LogWorkoutScreen from './screens/LogWorkoutScreen';
+
+const Stack = createStackNavigator();
+const Tab = createBottomTabNavigator();
+
+// Main tab navigator
+const MainTabNavigator = () => {
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
-  );
-}
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName;
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+          if (route.name === 'Home') {
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'Workouts') {
+            iconName = focused ? 'fitness' : 'fitness-outline';
+          } else if (route.name === 'Progress') {
+            iconName = focused ? 'stats-chart' : 'stats-chart-outline';
+          } else if (route.name === 'Profile') {
+            iconName = focused ? 'person' : 'person-outline';
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: '#E54D2E',
+        tabBarInactiveTintColor: 'gray',
+        headerShown: false,
+      })}
+    >
+      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Workouts" component={WorkoutStackNavigator} />
+      <Tab.Screen name="Progress" component={ProgressScreen} />
+      <Tab.Screen name="Profile" component={ProfileScreen} />
+    </Tab.Navigator>
+  );
+};
+
+// Workout stack navigator
+const WorkoutStackNavigator = () => {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: '#E54D2E',
+        },
+        headerTintColor: '#FFEE9C',
+        headerTitleStyle: {
+          fontWeight: 'bold',
+        },
+      }}
+    >
+      <Stack.Screen name="Workout Plans" component={WorkoutPlansScreen} />
+      <Stack.Screen name="Workout Detail" component={WorkoutDetailScreen} />
+      <Stack.Screen name="Log Workout" component={LogWorkoutScreen} />
+    </Stack.Navigator>
+  );
+};
+
+const App = () => {
+  return (
+    <AuthProvider>
+      <NavigationContainer>
+        <Stack.Navigator
+          screenOptions={{
+            headerShown: false,
+          }}
+        >
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="Register" component={RegisterScreen} />
+          <Stack.Screen name="Main" component={MainTabNavigator} />
+          <Stack.Screen name="LogWeight" component={LogWeightScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </AuthProvider>
+  );
+};
+
+export default App;
