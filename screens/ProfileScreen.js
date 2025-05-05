@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../context/AuthContext';
 import { getUserProfile, updateUserProfile } from '../services/api';
 
-const ProfileScreen = () => {
+const ProfileScreen = ({ navigation }) => {
   const { userInfo, logout } = useContext(AuthContext);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -33,10 +33,9 @@ const ProfileScreen = () => {
     const fetchProfile = async () => {
       try {
         setLoading(true);
-        const data = await getUserProfile();
+        const data = await getUserProfile(userInfo.user_id);
         setProfile(data);
-        
-        // Initialize form data with profile data
+
         setFormData({
           name: data.name || '',
           age: data.age ? data.age.toString() : '',
@@ -66,8 +65,7 @@ const ProfileScreen = () => {
   const handleSave = async () => {
     try {
       setSaving(true);
-      
-      // Convert string values to numbers
+
       const updatedProfile = {
         ...formData,
         age: formData.age ? parseInt(formData.age) : null,
@@ -75,9 +73,9 @@ const ProfileScreen = () => {
         current_weight: formData.current_weight ? parseFloat(formData.current_weight) : null,
         target_weight: formData.target_weight ? parseFloat(formData.target_weight) : null,
       };
-      
-      await updateUserProfile(updatedProfile);
-      
+
+      await updateUserProfile(userInfo.user_id, updatedProfile);
+
       Alert.alert('Success', 'Profile updated successfully!');
     } catch (error) {
       Alert.alert('Error', error.message || 'Failed to update profile');
@@ -86,22 +84,27 @@ const ProfileScreen = () => {
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Logout',
-          onPress: logout,
-          style: 'destructive',
-        },
-      ]
-    );
+  const handleLogout = async () => {
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      { 
+        text: 'Logout', 
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await logout();
+            // Reset navigation to Login screen
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Login' }],
+            });
+          } catch (error) {
+            console.error('Error during logout:', error);
+            Alert.alert('Error', 'Failed to logout. Please try again.');
+          }
+        }
+      },
+    ]);
   };
 
   if (loading) {

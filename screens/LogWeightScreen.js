@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import { useState, useContext, useEffect } from "react"
 import {
   View,
   Text,
@@ -10,60 +10,79 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { logWeight } from '../services/api';
+} from "react-native"
+import { Ionicons } from "@expo/vector-icons"
+import { logWeight } from "../services/api"
+import { AuthContext } from "../context/AuthContext"
+import { eventEmitter } from "../services/EventEmitter";
 
 const LogWeightScreen = ({ navigation }) => {
-  const [weight, setWeight] = useState('');
-  const [notes, setNotes] = useState('');
-  const [loading, setLoading] = useState(false);
+  const { userInfo, isLoading: authLoading } = useContext(AuthContext)
+  const [weight, setWeight] = useState("")
+  const [notes, setNotes] = useState("")
+  const [loading, setLoading] = useState(false)
 
+  // Check if user is authenticated, if necessary, just log them without it
+  useEffect(() => {
+    if (!authLoading && !userInfo) {
+      console.log("User is not logged in, but continuing anyway without authentication.")
+    } else if (userInfo) {
+      console.log("User logged in as:", userInfo.username)
+    }
+  }, [userInfo, authLoading])
+
+  // Handle the form submission
   const handleSubmit = async () => {
-    if (!weight || isNaN(parseFloat(weight))) {
-      Alert.alert('Error', 'Please enter a valid weight');
-      return;
+    if (!weight || isNaN(Number.parseFloat(weight))) {
+      Alert.alert("Error", "Please enter a valid weight")
+      return
     }
 
     try {
-      setLoading(true);
-      
+      setLoading(true)
+
       const weightData = {
-        weight: parseFloat(weight),
-        log_date: new Date().toISOString().split('T')[0],
-        notes: notes,
-      };
-      
-      await logWeight(weightData);
-      
-      Alert.alert(
-        'Success',
-        'Weight logged successfully!',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.navigate('Home'),
+        weight: Number.parseFloat(weight),
+        log_date: new Date().toISOString().split("T")[0], // Format as YYYY-MM-DD
+        notes: notes || "",
+        user_id_debug: 7, // Use a static user ID or any user ID you prefer
+      }
+
+      console.log("Submitting weight data:", weightData)
+
+      const response = await logWeight(weightData)
+      console.log("Weight log response:", response)
+
+      Alert.alert("Success", "Weight logged successfully!", [
+        {
+          text: "OK",
+          onPress: () => {
+            eventEmitter.emit("weightLogUpdated")
+            navigation.navigate("Progress")
           },
-        ]
-      );
+        },
+      ])
     } catch (error) {
-      Alert.alert('Error', error.message || 'Failed to log weight');
+      console.error("Error logging weight:", error)
+      Alert.alert("Error", error.message || "Failed to log weight")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
+
+  if (authLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#E54D2E" />
+      </View>
+    )
+  }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color="#FFEE9C" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Log Weight</Text>
@@ -92,47 +111,39 @@ const LogWeightScreen = ({ navigation }) => {
             />
           </View>
 
-          <TouchableOpacity
-            style={styles.submitButton}
-            onPress={handleSubmit}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFEE9C" />
-            ) : (
-              <Text style={styles.submitButtonText}>Log Weight</Text>
-            )}
+          <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={loading}>
+            {loading ? <ActivityIndicator color="#FFEE9C" /> : <Text style={styles.submitButtonText}>Log Weight</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
-  );
-};
+  )
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   scrollContainer: {
     flexGrow: 1,
   },
   header: {
-    backgroundColor: '#E54D2E',
+    backgroundColor: "#E54D2E",
     padding: 20,
     paddingTop: 60,
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   backButton: {
     marginRight: 15,
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFEE9C',
+    fontWeight: "bold",
+    color: "#FFEE9C",
   },
   formContainer: {
     padding: 20,
@@ -143,32 +154,37 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
     marginBottom: 10,
   },
   input: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: "#f5f5f5",
     borderRadius: 8,
     padding: 15,
     fontSize: 16,
   },
   textArea: {
     height: 100,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
   submitButton: {
-    backgroundColor: '#E54D2E',
+    backgroundColor: "#E54D2E",
     borderRadius: 8,
     padding: 15,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 20,
   },
   submitButtonText: {
-    color: '#FFEE9C',
+    color: "#FFEE9C",
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
-});
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+})
 
-export default LogWeightScreen;
+export default LogWeightScreen

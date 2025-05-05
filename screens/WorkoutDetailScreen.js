@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Image,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getPlanExercises } from '../services/api';
@@ -14,7 +15,7 @@ import { getPlanExercises } from '../services/api';
 const WorkoutDetailScreen = ({ route, navigation }) => {
   const { plan } = route.params;
   const [exercises, setExercises] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const fetchExercises = async () => {
@@ -23,7 +24,8 @@ const WorkoutDetailScreen = ({ route, navigation }) => {
         const data = await getPlanExercises(plan.id);
         setExercises(data);
       } catch (error) {
-        console.log('Error fetching exercises:', error);
+        console.error('Error fetching exercises:', error.message);
+        Alert.alert('Error', 'Failed to fetch exercises. Please try again.');
       } finally {
         setLoading(false);
       }
