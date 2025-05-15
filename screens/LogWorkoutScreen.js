@@ -3,10 +3,11 @@ import {
   View, Text, StyleSheet, FlatList,
   TouchableOpacity, TextInput, Switch,
   Alert, ActivityIndicator, SafeAreaView,
-  ScrollView
+  ScrollView, Platform, Modal
 } from "react-native";
 import { AuthContext } from "../context/AuthContext";
-import { logWorkoutSession } from "../services/logWorkout";
+import { logWorkoutSession } from "../services/api";
+import { Ionicons } from "@expo/vector-icons";
 
 const LogWorkoutScreen = ({ route, navigation }) => {
   const { plan, exercises } = route.params;
@@ -15,15 +16,54 @@ const LogWorkoutScreen = ({ route, navigation }) => {
   const [duration, setDuration] = useState("30");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
+  const [dayNumber, setDayNumber] = useState(1);
+
+  // Custom alert state
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  const [successCallback, setSuccessCallback] = useState(null);
 
   useEffect(() => {
-    setSelected(exercises.map(e=>({
+    setSelected(exercises.map(e => ({
       exercise_id: e.id,
       workout_name: plan.name,
       completed: true,
       notes: ""
-    })))
+    })));
   }, [exercises]);
+
+  // Day number controls
+  const incrementDay = () => {
+    setDayNumber(prev => Math.min(prev + 1, 31)); 
+  };
+
+  const decrementDay = () => {
+    setDayNumber(prev => Math.max(prev - 1, 1)); 
+  };
+
+  // Custom alert function
+  const showCustomAlert = (title, message, callback = null) => {
+    setAlertTitle(title);
+    setAlertMessage(message);
+    setAlertVisible(true);
+
+    // Store callback for success scenario
+    if (title === 'Success' && callback) {
+      setSuccessCallback(() => callback);
+    }
+  };
+
+  // Handle alert dismiss with possible navigation callback
+  const handleAlertDismiss = () => {
+    setAlertVisible(false);
+
+    // If this was a success alert and we have a callback, execute it
+    if (alertTitle === 'Success' && successCallback) {
+      successCallback();
+      setSuccessCallback(null); // Clear the callback
+    }
+  };
 
   const toggle = i => {
     const copy = [...selected];
@@ -38,23 +78,36 @@ const LogWorkoutScreen = ({ route, navigation }) => {
   };
 
   const handleSubmit = async () => {
+    console.log("Submit workout button clicked");
+    
     // validation
-    if (!duration || isNaN(+duration) || +duration<=0) {
-      return Alert.alert("Error","Enter valid duration");
+    if (!duration || isNaN(+duration) || +duration <= 0) {
+      console.log("Invalid duration entered");
+      showCustomAlert("Error", "Enter valid duration");
+      return;
     }
+    
     if (!userInfo) {
-      return Alert.alert("Error","Log in first");
+      console.log("User not logged in");
+      showCustomAlert("Error", "Log in first");
+      return;
     }
-    const done = selected.filter(s=>s.completed);
-    if (done.length===0){
-      return Alert.alert("Error","Select at least one exercise");
+    
+    const done = selected.filter(s => s.completed);
+    if (done.length === 0) {
+      console.log("No exercises selected");
+      showCustomAlert("Error", "Select at least one exercise");
+      return;
     }
+
     try {
       setLoading(true);
+      console.log("Starting workout submission");
+      
       const today = new Date().toISOString().split("T")[0];
-      const now   = new Date().toISOString();
+      const now = new Date().toISOString();
 
-      // build payload
+      // Make sure dayNumber is explicitly included in each entry
       const payload = done.map(s => ({
         user_id: userInfo.id,
         exercise_id: s.exercise_id,
@@ -63,22 +116,33 @@ const LogWorkoutScreen = ({ route, navigation }) => {
         duration: +duration,
         completed: s.completed ? 1 : 0,
         notes: s.notes || notes,
-        created_at: now
+        created_at: now,
+        day_number: dayNumber // This is the important part
       }));
 
-      await logWorkoutSession(payload);
+      // Add very explicit debug logging
+      console.log("About to send workout with day number:", dayNumber);
+      console.log("First payload item:", JSON.stringify(payload[0]));
 
-      Alert.alert("Success","Workout logged!",[
-        { text:"OK", onPress:()=>navigation.navigate("Home")}
-      ]);
-    } catch(err){
-      Alert.alert("Error",err.message);
+      await logWorkoutSession(payload);
+      console.log("Workout logged successfully");
+
+      showCustomAlert("Success", "Workout logged!", () => {
+        console.log("Alert OK pressed, navigating to Home");
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "Main", state: { routes: [{ name: "Home" }] } }],
+        });
+      });
+    } catch (err) {
+      console.error("Error logging workout:", err);
+      showCustomAlert("Error", err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
   };
 
-  if(authLoading) return (
+  if (authLoading) return (
     <View style={styles.loadingContainer}>
       <ActivityIndicator size="large" color="#E54D2E" />
     </View>
@@ -86,12 +150,58 @@ const LogWorkoutScreen = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Custom Alert Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={alertVisible}
+        onRequestClose={() => handleAlertDismiss()}
+      >
+        <View style={styles.centeredView}>
+          <View style={styles.modalView}>
+            <Text style={styles.modalTitle}>{alertTitle}</Text>
+            <Text style={styles.modalText}>{alertMessage}</Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => handleAlertDismiss()}
+            >
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <View style={styles.header}>
         <Text style={styles.headerTitle}>LOG WORKOUT</Text>
         <Text style={styles.planName}>{plan.name}</Text>
       </View>
-      
+
       <ScrollView style={styles.formContainer}>
+        {/* Day Number Selector - Updated UI */}
+        <View style={styles.dayNumberContainer}>
+          <Text style={styles.inputLabel}>Workout Day</Text>
+          <View style={styles.dayNumberSelector}>
+            <TouchableOpacity
+              onPress={decrementDay}
+              style={[styles.dayButton, dayNumber <= 1 && {opacity: 0.5}]}
+              disabled={dayNumber <= 1}
+            >
+              <Ionicons name="remove" size={24} color={dayNumber > 1 ? "#E54D2E" : "#ccc"} />
+            </TouchableOpacity>
+            <View style={styles.dayNumberDisplay}>
+              <Text style={styles.dayNumberText}>Day {dayNumber}</Text>
+            </View>
+            <TouchableOpacity
+              onPress={incrementDay}
+              style={styles.dayButton}
+            >
+              <Ionicons name="add" size={24} color="#E54D2E" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.sectionSeparator} />
+
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>Duration (minutes)</Text>
           <TextInput
@@ -102,7 +212,7 @@ const LogWorkoutScreen = ({ route, navigation }) => {
             placeholder="Enter workout duration"
           />
         </View>
-        
+
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>General Notes</Text>
           <TextInput
@@ -117,16 +227,20 @@ const LogWorkoutScreen = ({ route, navigation }) => {
         <View style={styles.exercisesContainer}>
           <Text style={styles.exercisesTitle}>Exercises</Text>
           <Text style={styles.exercisesSubtitle}>Toggle exercises you've completed</Text>
-          
+
           {selected.map((item, index) => (
-            <View key={index} style={styles.exerciseItem}>
+            <View key={index} style={[
+              styles.exerciseItem, 
+              item.completed && {borderLeftWidth: 4, borderLeftColor: '#E54D2E'}
+            ]}>
               <View style={styles.exerciseHeader}>
                 <Text style={styles.exerciseName}>{exercises[index].name}</Text>
                 <Switch
                   value={item.completed}
                   onValueChange={() => toggle(index)}
-                  trackColor={{ false: "#f5f5f5", true: "#E54D2E" }}
+                  trackColor={{ false: "#f0f0f0", true: "#E54D2E" }}
                   thumbColor={item.completed ? "#FFEE9C" : "#fff"}
+                  ios_backgroundColor="#f0f0f0"
                 />
               </View>
               <TextInput
@@ -147,9 +261,12 @@ const LogWorkoutScreen = ({ route, navigation }) => {
         disabled={loading}
       >
         {loading ? (
-          <ActivityIndicator color="#FFEE9C" />
+          <ActivityIndicator color="#FFEE9C" size="small" />
         ) : (
-          <Text style={styles.submitButtonText}>LOG WORKOUT</Text>
+          <>
+            <Text style={styles.submitButtonText}>LOG WORKOUT</Text>
+           
+          </>
         )}
       </TouchableOpacity>
     </SafeAreaView>
@@ -169,122 +286,238 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: "#E54D2E",
-    padding: 20,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    padding: 24,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+    marginBottom: 10,
   },
   headerTitle: {
     fontSize: 16,
     color: "#FFEE9C",
     fontWeight: "600",
-    letterSpacing: 1,
+    letterSpacing: 1.5,
   },
   planName: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: "bold",
     color: "#FFEE9C",
-    marginTop: 5,
+    marginTop: 8,
   },
   formContainer: {
     flex: 1,
     padding: 20,
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   inputLabel: {
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: "700",
     color: "#333",
     marginBottom: 10,
+    letterSpacing: 0.5,
   },
   input: {
     backgroundColor: "#f5f5f5",
-    borderRadius: 12,
-    padding: 15,
+    borderRadius: 16,
+    padding: 16,
     fontSize: 16,
-    borderWidth: 1,
-    borderColor: "#eaeaea",
-  },
-  textArea: {
-    height: 100,
-    textAlignVertical: "top",
-  },
-  exercisesContainer: {
-    marginBottom: 100, // Space for the button
-  },
-  exercisesTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 5,
-  },
-  exercisesSubtitle: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 15,
-  },
-  exerciseItem: {
-    backgroundColor: "#f5f5f5",
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 15,
     borderWidth: 1,
     borderColor: "#eaeaea",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  textArea: {
+    height: 120,
+    textAlignVertical: "top",
+  },
+  exercisesContainer: {
+    marginBottom: 100,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 10,
+  },
+  exercisesTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 6,
+  },
+  exercisesSubtitle: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 20,
+    fontStyle: "italic",
+  },
+  exerciseItem: {
+    backgroundColor: "#f9f9f9",
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#eaeaea",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 3,
+    elevation: 2,
   },
   exerciseHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   exerciseName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "bold",
     color: "#333",
     flex: 1,
   },
   exerciseNotes: {
     backgroundColor: "#fff",
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 12,
+    padding: 14,
     fontSize: 14,
     borderWidth: 1,
     borderColor: "#eaeaea",
-    minHeight: 60,
+    minHeight: 70,
     textAlignVertical: "top",
   },
   submitButton: {
     backgroundColor: "#E54D2E",
     padding: 18,
-    borderRadius: 15,
+    borderRadius: 24,
     margin: 20,
     alignItems: "center",
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowColor: "#E54D2E",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   submitButtonText: {
     color: "#FFEE9C",
     fontSize: 18,
     fontWeight: "bold",
-    letterSpacing: 1,
+    letterSpacing: 1.5,
+  },
+  // Modal styles
+  centeredView: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  },
+  modalView: {
+    margin: 20,
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 30,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    minWidth: 320,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    color: '#E54D2E',
+    textAlign: 'center',
+  },
+  modalText: {
+    marginBottom: 24,
+    textAlign: 'center',
+    fontSize: 16,
+    color: '#333',
+    lineHeight: 22,
+  },
+  modalButton: {
+    backgroundColor: '#E54D2E',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    elevation: 3,
+  },
+  modalButtonText: {
+    color: '#FFEE9C',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    fontSize: 16,
+    letterSpacing: 0.5,
+  },
+  // Day number styles
+  dayNumberContainer: {
+    marginBottom: 24,
+    backgroundColor: '#fff',
+    padding: 10,
+    borderRadius: 20,
+  },
+  dayNumberSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 12,
+  },
+  dayButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#eaeaea',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  dayNumberDisplay: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    marginHorizontal: 20,
+    minWidth: 120,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E54D2E20',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  dayNumberText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#E54D2E',
+  },
+  sectionSeparator: {
+    height: 1,
+    backgroundColor: '#f0f0f0',
+    marginVertical: 16,
   },
 });
 

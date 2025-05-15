@@ -1,8 +1,12 @@
+import React, { useContext } from "react"
 import { NavigationContainer } from "@react-navigation/native"
 import { createStackNavigator } from "@react-navigation/stack"
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs"
 import { Ionicons } from "@expo/vector-icons"
-import { AuthProvider } from "./context/AuthContext"
+import { AuthProvider, AuthContext } from "./context/AuthContext"
+import { eventEmitter } from "./services/EventEmitter"
+import { useEffect, useRef } from "react"
+import { Alert, ActivityIndicator } from "react-native"
 
 // Screens
 import LoginScreen from "./screens/LoginScreen"

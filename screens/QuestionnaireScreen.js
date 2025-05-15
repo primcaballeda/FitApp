@@ -8,18 +8,18 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Modal,
 } from "react-native"
 import { Picker } from "@react-native-picker/picker"
 import { Ionicons } from "@expo/vector-icons"
 import { AuthContext } from "../context/AuthContext"
-import { getUserProfile, updateUserProfile } from "../services/api"
+import { getUserProfile, updateUserProfile, logWeight } from "../services/api"
 
 const QuestionnaireScreen = ({ navigation, route }) => {
-  const { userInfo } = useContext(AuthContext)
+  const { userInfo, completeQuestionnaire } = useContext(AuthContext)
   const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -33,15 +33,77 @@ const QuestionnaireScreen = ({ navigation, route }) => {
     target_weight: "",
     fitness_level: "beginner",
   })
+  
+  // Added state variables for custom alert modal
+  const [alertVisible, setAlertVisible] = useState(false)
+  const [alertTitle, setAlertTitle] = useState('')
+  const [alertMessage, setAlertMessage] = useState('')
+  const [alertCallback, setAlertCallback] = useState(null)
+
+  // Add these with your other state variables
+  const [genderDropdownVisible, setGenderDropdownVisible] = useState(false);
+  const [fitnessDropdownVisible, setFitnessDropdownVisible] = useState(false);
 
   // Check if we're editing an existing profile
-  const isFirstTimeSetup = route.params?.isFirstTimeSetup || false
+  const isFirstTimeSetup = route?.params?.isFirstTimeSetup || false
+
+  // Custom alert function using Modal component
+  const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
+    setAlertTitle(title);
+    setAlertMessage(message);
+    
+    // Store callback for OK button if provided
+    if (buttons && buttons.length > 0 && buttons[0].onPress) {
+      setAlertCallback(() => buttons[0].onPress);
+    } else {
+      setAlertCallback(null);
+    }
+    
+    setAlertVisible(true);
+  };
+  
+  // Handle alert dismiss with possible callback
+  const handleAlertDismiss = () => {
+    setAlertVisible(false);
+    
+    // If we have a callback, execute it
+    if (alertCallback) {
+      alertCallback();
+      setAlertCallback(null); // Clear the callback
+    }
+  };
+
+  // Navigation helper function that works in both React Native and web
+  const navigateTo = (screenName, resetNavigation = false) => {
+    if (navigation && typeof navigation.navigate === 'function' && !resetNavigation) {
+      navigation.navigate(screenName);
+    } else if (navigation && typeof navigation.reset === 'function' && resetNavigation) {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: screenName }],
+      });
+    } else if (typeof window !== 'undefined') {
+      // For web, redirect to the appropriate route
+      window.location.href = `/${screenName.toLowerCase()}`;
+    }
+  };
+
+  // Navigation go back helper function
+  const goBack = () => {
+    if (navigation && typeof navigation.goBack === 'function') {
+      navigation.goBack();
+    } else if (typeof window !== 'undefined') {
+      // For web, use browser's back functionality
+      window.history.back();
+    }
+  };
 
   useEffect(() => {
     const checkExistingProfile = async () => {
       try {
         setLoading(true)
-        const profile = await getUserProfile()
+        // Pass the user ID to getUserProfile
+        const profile = await getUserProfile(userInfo?.id)
 
         if (profile) {
           setExistingProfile(profile)
@@ -59,7 +121,7 @@ const QuestionnaireScreen = ({ navigation, route }) => {
         console.log("Error fetching profile:", error)
         // If it's first time setup, we expect no profile to exist
         if (!isFirstTimeSetup) {
-          Alert.alert("Error", "Failed to fetch your profile data")
+          showAlert("Error", "Failed to fetch your profile data")
         }
       } finally {
         setLoading(false)
@@ -67,7 +129,7 @@ const QuestionnaireScreen = ({ navigation, route }) => {
     }
 
     checkExistingProfile()
-  }, [isFirstTimeSetup])
+  }, [isFirstTimeSetup, userInfo?.id])
 
   const handleChange = (field, value) => {
     setFormData({
@@ -78,35 +140,37 @@ const QuestionnaireScreen = ({ navigation, route }) => {
 
   const validateCurrentStep = () => {
     switch (currentStep) {
-      case 1: // Name
-        if (!formData.name.trim()) {
-          Alert.alert("Error", "Please enter your name")
-          return false
-        }
-        return true
-      case 2: // Age
+      case 1: // Age first in this file
         if (!formData.age || isNaN(Number.parseInt(formData.age))) {
-          Alert.alert("Error", "Please enter a valid age")
+          showAlert("Error", "Please enter a valid age")
           return false
         }
         return true
-      case 3: // Gender
+      case 2: // Gender
         return true // Gender always has a default value
-      case 4: // Height
+      case 3: // Height
         if (!formData.height || isNaN(Number.parseFloat(formData.height))) {
-          Alert.alert("Error", "Please enter a valid height in cm")
+          showAlert("Error", "Please enter a valid height in cm")
           return false
         }
         return true
-      case 5: // Current weight
+      case 4: // Current weight
         if (!formData.current_weight || isNaN(Number.parseFloat(formData.current_weight))) {
-          Alert.alert("Error", "Please enter a valid current weight in kg")
+          showAlert("Error", "Please enter a valid current weight in kg")
           return false
         }
         return true
-      case 6: // Target weight
+      case 5: // Target weight
         if (!formData.target_weight || isNaN(Number.parseFloat(formData.target_weight))) {
-          Alert.alert("Error", "Please enter a valid target weight in kg")
+          showAlert("Error", "Please enter a valid target weight in kg")
+          return false
+        }
+        return true
+      case 6: // Fitness level
+        return true // Fitness level always has a default value
+      case 7: // Name
+        if (!formData.name.trim()) {
+          showAlert("Error", "Please enter your name")
           return false
         }
         return true
@@ -133,7 +197,7 @@ const QuestionnaireScreen = ({ navigation, route }) => {
 
   const handleSubmit = async () => {
     try {
-      setSaving(true)
+      setSaving(true);
 
       // Convert string values to numbers
       const profileData = {
@@ -144,31 +208,59 @@ const QuestionnaireScreen = ({ navigation, route }) => {
         current_weight: Number.parseFloat(formData.current_weight),
         target_weight: Number.parseFloat(formData.target_weight),
         fitness_level: formData.fitness_level,
+      };
+
+      // First update the profile
+      console.log("Updating profile with data:", profileData);
+      await updateUserProfile(userInfo?.id, profileData);
+      
+      // Log weight separately and handle potential errors
+      try {
+        const currentDate = new Date().toISOString().split('T')[0];
+        const weightLogData = {
+          user_id: userInfo?.id,
+          weight: Number.parseFloat(formData.current_weight),
+          log_date: currentDate,
+          notes: isFirstTimeSetup ? "Initial weight from profile setup" : "Weight updated from profile"
+        };
+        
+        console.log("Logging weight with data:", weightLogData);
+        await logWeight(weightLogData);
+        console.log("Weight logged successfully");
+      } catch (weightLogError) {
+        // Just log the error but continue with flow
+        console.error("Error logging weight:", weightLogError);
       }
 
-      await updateUserProfile(profileData)
-
-      Alert.alert("Success", isFirstTimeSetup ? "Profile created successfully!" : "Profile updated successfully!", [
-        {
-          text: "OK",
-          onPress: () => {
-            if (isFirstTimeSetup) {
-              navigation.reset({
-                index: 0,
-                routes: [{ name: "Main" }],
-              })
-            } else {
-              navigation.goBack()
-            }
-          },
-        },
-      ])
+      // Now proceed with the questionnaire completion
+      await handleSubmitQuestionnaire(formData);
     } catch (error) {
-      Alert.alert("Error", error.message || "Failed to update profile")
+      console.error("Profile update error:", error);
+      showAlert("Error", error.message || "Failed to update profile");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
+
+  // Fix the handleSubmitQuestionnaire function
+  const handleSubmitQuestionnaire = async (formData) => {
+    try {
+      // Mark the questionnaire as completed using the context function
+      await completeQuestionnaire();
+      
+      // Show success message
+      showAlert("Success", "Your profile has been updated successfully!", () => {
+        // Navigate to Main screen (which contains HomeScreen as a tab)
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Main' }], // Change 'Home' to 'Main'
+        });
+      });
+    } catch (error) {
+      console.error("Error completing questionnaire:", error);
+      showAlert("Error", "Failed to complete profile setup. Please try again.");
+    }
+  };
 
   const renderProgressBar = () => {
     return (
@@ -185,20 +277,6 @@ const QuestionnaireScreen = ({ navigation, route }) => {
       case 1:
         return (
           <View style={styles.stepContainer}>
-            <Text style={styles.stepTitle}>What's your name?</Text>
-            <Text style={styles.stepDescription}>We'll use this to personalize your experience</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.name}
-              onChangeText={(text) => handleChange("name", text)}
-              placeholder="Enter your full name"
-              placeholderTextColor="#999"
-            />
-          </View>
-        )
-      case 2:
-        return (
-          <View style={styles.stepContainer}>
             <Text style={styles.stepTitle}>How old are you?</Text>
             <Text style={styles.stepDescription}>Your age helps us tailor workouts to your needs</Text>
             <TextInput
@@ -211,25 +289,62 @@ const QuestionnaireScreen = ({ navigation, route }) => {
             />
           </View>
         )
-      case 3:
+      case 2:
         return (
           <View style={styles.stepContainer}>
             <Text style={styles.stepTitle}>What's your gender?</Text>
             <Text style={styles.stepDescription}>This helps us calculate your fitness metrics more accurately</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={formData.gender}
-                onValueChange={(value) => handleChange("gender", value)}
-                style={styles.picker}
+            
+            <TouchableOpacity 
+              style={styles.customDropdown}
+              onPress={() => setGenderDropdownVisible(true)}
+            >
+              <Text style={styles.dropdownText}>{formData.gender}</Text>
+              <Ionicons name="chevron-down" size={20} style={styles.dropdownIcon} />
+            </TouchableOpacity>
+            
+            {/* Gender Dropdown Modal */}
+            <Modal
+              transparent={true}
+              visible={genderDropdownVisible}
+              animationType="fade"
+              onRequestClose={() => setGenderDropdownVisible(false)}
+            >
+              <TouchableOpacity 
+                style={styles.modalOverlay}
+                activeOpacity={1}
+                onPress={() => setGenderDropdownVisible(false)}
               >
-                <Picker.Item label="Male" value="Male" />
-                <Picker.Item label="Female" value="Female" />
-                <Picker.Item label="Other" value="Other" />
-              </Picker>
-            </View>
+                <View style={styles.dropdownModal}>
+                  {['Male', 'Female', 'Other'].map((option) => (
+                    <TouchableOpacity
+                      key={option}
+                      style={[
+                        styles.dropdownOption,
+                        formData.gender === option && styles.dropdownOptionSelected
+                      ]}
+                      onPress={() => {
+                        handleChange('gender', option);
+                        setGenderDropdownVisible(false);
+                      }}
+                    >
+                      <Text style={[
+                        styles.dropdownOptionText,
+                        formData.gender === option && styles.dropdownOptionTextSelected
+                      ]}>
+                        {option}
+                      </Text>
+                      {formData.gender === option && (
+                        <Ionicons name="checkmark" size={20} color="#E54D2E" />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </TouchableOpacity>
+            </Modal>
           </View>
         )
-      case 4:
+      case 3:
         return (
           <View style={styles.stepContainer}>
             <Text style={styles.stepTitle}>What's your height?</Text>
@@ -244,7 +359,7 @@ const QuestionnaireScreen = ({ navigation, route }) => {
             />
           </View>
         )
-      case 5:
+      case 4:
         return (
           <View style={styles.stepContainer}>
             <Text style={styles.stepTitle}>What's your current weight?</Text>
@@ -259,7 +374,7 @@ const QuestionnaireScreen = ({ navigation, route }) => {
             />
           </View>
         )
-      case 6:
+      case 5:
         return (
           <View style={styles.stepContainer}>
             <Text style={styles.stepTitle}>What's your target weight?</Text>
@@ -274,22 +389,93 @@ const QuestionnaireScreen = ({ navigation, route }) => {
             />
           </View>
         )
-      case 7:
+      case 6:
         return (
           <View style={styles.stepContainer}>
             <Text style={styles.stepTitle}>What's your fitness level?</Text>
             <Text style={styles.stepDescription}>This helps us recommend appropriate workouts</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={formData.fitness_level}
-                onValueChange={(value) => handleChange("fitness_level", value)}
-                style={styles.picker}
+            
+            <TouchableOpacity 
+              style={styles.customDropdown}
+              onPress={() => setFitnessDropdownVisible(true)}
+            >
+              <View style={styles.dropdownContent}>
+                <Ionicons 
+                  name={
+                    formData.fitness_level === 'beginner' ? 'walk-outline' : 
+                    formData.fitness_level === 'intermediate' ? 'bicycle-outline' : 'fitness-outline'
+                  } 
+                  size={20} 
+                  color="#888"
+                  style={styles.dropdownContentIcon}
+                />
+                <Text style={styles.dropdownText}>
+                  {formData.fitness_level.charAt(0).toUpperCase() + formData.fitness_level.slice(1)}
+                </Text>
+              </View>
+              <Ionicons name="chevron-down" size={20} style={styles.dropdownIcon} />
+            </TouchableOpacity>
+            
+            {/* Fitness Level Dropdown Modal */}
+            <Modal
+              transparent={true}
+              visible={fitnessDropdownVisible}
+              animationType="fade"
+              onRequestClose={() => setFitnessDropdownVisible(false)}
+            >
+              <TouchableOpacity 
+                style={styles.modalOverlay}
+                activeOpacity={1}
+                onPress={() => setFitnessDropdownVisible(false)}
               >
-                <Picker.Item label="Beginner" value="beginner" />
-                <Picker.Item label="Intermediate" value="intermediate" />
-                <Picker.Item label="Advanced" value="advanced" />
-              </Picker>
-            </View>
+                <View style={styles.dropdownModal}>
+                  {[
+                    { label: 'Beginner', value: 'beginner', icon: 'walk-outline' },
+                    { label: 'Intermediate', value: 'intermediate', icon: 'bicycle-outline' },
+                    { label: 'Advanced', value: 'advanced', icon: 'fitness-outline' }
+                  ].map((option) => (
+                    <TouchableOpacity
+                      key={option.value}
+                      style={[
+                        styles.dropdownOption,
+                        formData.fitness_level === option.value && styles.dropdownOptionSelected
+                      ]}
+                      onPress={() => {
+                        handleChange('fitness_level', option.value);
+                        setFitnessDropdownVisible(false);
+                      }}
+                    >
+                      <View style={styles.dropdownOptionContent}>
+                        <Ionicons name={option.icon} size={20} color={formData.fitness_level === option.value ? "#E54D2E" : "#888"} />
+                        <Text style={[
+                          styles.dropdownOptionText,
+                          formData.fitness_level === option.value && styles.dropdownOptionTextSelected
+                        ]}>
+                          {option.label}
+                        </Text>
+                      </View>
+                      {formData.fitness_level === option.value && (
+                        <Ionicons name="checkmark" size={20} color="#E54D2E" />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </TouchableOpacity>
+            </Modal>
+          </View>
+        )
+      case 7:
+        return (
+          <View style={styles.stepContainer}>
+            <Text style={styles.stepTitle}>What's your name?</Text>
+            <Text style={styles.stepDescription}>Please confirm your name</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.name}
+              onChangeText={(text) => handleChange("name", text)}
+              placeholder="Your full name"
+              placeholderTextColor="#999"
+            />
           </View>
         )
       default:
@@ -307,6 +493,27 @@ const QuestionnaireScreen = ({ navigation, route }) => {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
+      {/* Custom Alert Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={alertVisible}
+        onRequestClose={() => handleAlertDismiss()}
+      >
+        <View style={styles.centeredView}>
+          <View style={styles.modalView}>
+            <Text style={styles.modalTitle}>{alertTitle}</Text>
+            <Text style={styles.modalText}>{alertMessage}</Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => handleAlertDismiss()}
+            >
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{isFirstTimeSetup ? "Complete Your Profile" : "Update Your Profile"}</Text>
@@ -448,6 +655,128 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     marginRight: 5,
+  },
+  // Added styles for modal alert
+  centeredView: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  modalView: {
+    margin: 20,
+    backgroundColor: "white",
+    borderRadius: 10,
+    padding: 25,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    minWidth: 300,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 15,
+    color: "#E54D2E",
+    textAlign: "center",
+  },
+  modalText: {
+    marginBottom: 20,
+    textAlign: "center",
+    fontSize: 16,
+    color: "#333",
+  },
+  modalButton: {
+    backgroundColor: "#E54D2E",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    elevation: 2,
+  },
+  modalButtonText: {
+    color: "#FFEE9C",
+    fontWeight: "bold",
+    textAlign: "center",
+    fontSize: 16,
+  },
+  // Updated styles for custom dropdown
+  customDropdown: {
+    backgroundColor: '#f8f8f8',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: '#444',
+  },
+  dropdownIcon: {
+    color: '#888',
+  },
+  dropdownContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dropdownContentIcon: {
+    marginRight: 10,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dropdownModal: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 8,
+    width: '80%',
+    maxWidth: 300,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  dropdownOption: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dropdownOptionSelected: {
+    backgroundColor: 'rgba(229, 77, 46, 0.1)',
+  },
+  dropdownOptionText: {
+    fontSize: 16,
+    color: '#444',
+  },
+  dropdownOptionTextSelected: {
+    color: '#E54D2E',
+    fontWeight: '600',
+  },
+  dropdownOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
 })
 

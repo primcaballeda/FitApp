@@ -1,40 +1,52 @@
-import { useState, useContext, useEffect } from "react"
+import { useState, useContext } from "react"
 import {
   View,
   Text,
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Modal,
 } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { logWeight } from "../services/api"
 import { AuthContext } from "../context/AuthContext"
-import { eventEmitter } from "../services/EventEmitter";
+import { eventEmitter } from "../services/EventEmitter"
 
 const LogWeightScreen = ({ navigation }) => {
-  const { userInfo, isLoading: authLoading } = useContext(AuthContext)
+  const { userInfo } = useContext(AuthContext)
   const [weight, setWeight] = useState("")
   const [notes, setNotes] = useState("")
   const [loading, setLoading] = useState(false)
 
-  // Check if user is authenticated, if necessary, just log them without it
-  useEffect(() => {
-    if (!authLoading && !userInfo) {
-      console.log("User is not logged in, but continuing anyway without authentication.")
-    } else if (userInfo) {
-      console.log("User logged in as:", userInfo.username)
-    }
-  }, [userInfo, authLoading])
+  const [alertVisible, setAlertVisible] = useState(false)
+  const [alertTitle, setAlertTitle] = useState("")
+  const [alertMessage, setAlertMessage] = useState("")
+  const [successCallback, setSuccessCallback] = useState(null)
 
-  // Handle the form submission
+  const showCustomAlert = (title, message, callback = null) => {
+    setAlertTitle(title)
+    setAlertMessage(message)
+    setAlertVisible(true)
+    if (title === "Success" && callback) {
+      setSuccessCallback(() => callback)
+    }
+  }
+
+  const handleAlertDismiss = () => {
+    setAlertVisible(false)
+    if (alertTitle === "Success" && successCallback) {
+      successCallback()
+      setSuccessCallback(null)
+    }
+  }
+
   const handleSubmit = async () => {
     if (!weight || isNaN(Number.parseFloat(weight))) {
-      Alert.alert("Error", "Please enter a valid weight")
+      showCustomAlert("Error", "Please enter a valid weight")
       return
     }
 
@@ -43,44 +55,49 @@ const LogWeightScreen = ({ navigation }) => {
 
       const weightData = {
         weight: Number.parseFloat(weight),
-        log_date: new Date().toISOString().split("T")[0], // Format as YYYY-MM-DD
+        log_date: new Date().toISOString().split("T")[0],
         notes: notes || "",
-        user_id_debug: 7, // Use a static user ID or any user ID you prefer
       }
 
-      console.log("Submitting weight data:", weightData)
+      await logWeight(weightData)
 
-      const response = await logWeight(weightData)
-      console.log("Weight log response:", response)
-
-      Alert.alert("Success", "Weight logged successfully!", [
-        {
-          text: "OK",
-          onPress: () => {
-            eventEmitter.emit("weightLogUpdated")
-            navigation.navigate("Progress")
-          },
-        },
-      ])
+      showCustomAlert("Success", "Weight logged successfully!", () => {
+        eventEmitter.emit("weightLogUpdated")
+        setWeight("")
+        setNotes("")
+        navigation.navigate("Progress")
+      })
     } catch (error) {
-      console.error("Error logging weight:", error)
-      Alert.alert("Error", error.message || "Failed to log weight")
+      showCustomAlert("Error", error.message || "An unexpected error occurred")
     } finally {
       setLoading(false)
     }
   }
 
-  if (authLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#E54D2E" />
-      </View>
-    )
-  }
-
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
+        {/* Custom Alert Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={alertVisible}
+          onRequestClose={handleAlertDismiss}
+        >
+          <View style={styles.centeredView}>
+            <View style={styles.modalView}>
+              <Text style={styles.modalTitle}>{alertTitle}</Text>
+              <Text style={styles.modalText}>{alertMessage}</Text>
+              <TouchableOpacity
+                style={styles.modalButton}
+                onPress={handleAlertDismiss}
+              >
+                <Text style={styles.modalButtonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color="#FFEE9C" />
@@ -111,8 +128,16 @@ const LogWeightScreen = ({ navigation }) => {
             />
           </View>
 
-          <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={loading}>
-            {loading ? <ActivityIndicator color="#FFEE9C" /> : <Text style={styles.submitButtonText}>Log Weight</Text>}
+          <TouchableOpacity 
+            style={styles.submitButton} 
+            onPress={handleSubmit} 
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFEE9C" />
+            ) : (
+              <Text style={styles.submitButtonText}>Log Weight</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -180,10 +205,51 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
   },
-  loadingContainer: {
+  // Modal styles
+  centeredView: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  modalView: {
+    margin: 20,
+    backgroundColor: "white",
+    borderRadius: 10,
+    padding: 25,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    minWidth: 300,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 15,
+    color: "#E54D2E",
+    textAlign: "center",
+  },
+  modalText: {
+    marginBottom: 20,
+    textAlign: "center",
+    fontSize: 16,
+    color: "#333",
+  },
+  modalButton: {
+    backgroundColor: "#E54D2E",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    elevation: 2,
+  },
+  modalButtonText: {
+    color: "#FFEE9C",
+    fontWeight: "bold",
+    textAlign: "center",
+    fontSize: 16,
   },
 })
 

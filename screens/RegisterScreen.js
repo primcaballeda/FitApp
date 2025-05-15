@@ -5,11 +5,11 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
 
@@ -19,33 +19,59 @@ const RegisterScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  const [successCallback, setSuccessCallback] = useState(null);
   const { register, isLoading } = useContext(AuthContext);
+
+  // Custom alert function for React Native
+  const showCustomAlert = (title, message, callback = null) => {
+    setAlertTitle(title);
+    setAlertMessage(message);
+    setAlertVisible(true);
+    
+    // Store callback for success scenario
+    if (title === 'Registration Successful' && callback) {
+      setSuccessCallback(() => callback);
+    }
+  };
+
+  // Handle alert dismiss with possible navigation callback
+  const handleAlertDismiss = () => {
+    setAlertVisible(false);
+    
+    // If this was a success alert and we have a callback, execute it
+    if (alertTitle === 'Registration Successful' && successCallback) {
+      successCallback();
+      setSuccessCallback(null); // Clear the callback
+    }
+  };
 
   const handleRegister = async () => {
     if (!username || !email || !password || !confirmPassword || !name) {
-      Alert.alert('Error', 'Please fill in all fields');
+      showCustomAlert('Error', 'Please fill in all fields');
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      showCustomAlert('Error', 'Passwords do not match');
       return;
     }
 
     try {
-      await register({ username, email, password, name });
-      Alert.alert(
+      console.log('Registration data:', { username, email, password, name });
+      const response = await register({ username, email, password, name });
+      console.log('Registration response:', response);
+      
+      showCustomAlert(
         'Registration Successful',
         'You can now login with your credentials',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.navigate('Login'),
-          },
-        ]
+        () => navigation.navigate('Login')
       );
     } catch (error) {
-      Alert.alert('Registration Failed', error.message || 'Something went wrong');
+      console.error('Registration error details:', error);
+      showCustomAlert('Registration Failed', error.message || 'Something went wrong');
     }
   };
 
@@ -55,6 +81,27 @@ const RegisterScreen = ({ navigation }) => {
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
+        {/* Custom Alert Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={alertVisible}
+          onRequestClose={() => handleAlertDismiss()}
+        >
+          <View style={styles.centeredView}>
+            <View style={styles.modalView}>
+              <Text style={styles.modalTitle}>{alertTitle}</Text>
+              <Text style={styles.modalText}>{alertMessage}</Text>
+              <TouchableOpacity
+                style={styles.modalButton}
+                onPress={() => handleAlertDismiss()}
+              >
+                <Text style={styles.modalButtonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
         <Text style={styles.title}>Create Account</Text>
         <Text style={styles.subtitle}>Join FitApp to start your fitness journey</Text>
 
@@ -185,6 +232,55 @@ const styles = StyleSheet.create({
   loginLink: {
     color: '#E54D2E',
     fontWeight: 'bold',
+  },
+  // Modal styles
+  centeredView: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalView: {
+    margin: 20,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 25,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    minWidth: 300,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    color: '#E54D2E',
+    textAlign: 'center',
+  },
+  modalText: {
+    marginBottom: 20,
+    textAlign: 'center',
+    fontSize: 16,
+    color: '#333',
+  },
+  modalButton: {
+    backgroundColor: '#E54D2E',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    elevation: 2,
+  },
+  modalButtonText: {
+    color: '#FFEE9C',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    fontSize: 16,
   },
 });
 

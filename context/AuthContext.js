@@ -1,49 +1,135 @@
 "use client"
 
-import { createContext, useState, useEffect } from "react"
+import React, { createContext, useState, useEffect } from "react"
 import AsyncStorage from "@react-native-async-storage/async-storage"
-import { API_URL } from "../config.js"
-import { checkSession } from "../services/api.js"
+import { API_URL } from "../config"
+import { Alert } from "react-native"
 
 export const AuthContext = createContext()
 
 export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true)
   const [userInfo, setUserInfo] = useState(null)
+  const [userToken, setUserToken] = useState(null)
+  const [isNewUser, setIsNewUser] = useState(false)
+  const [isProfileComplete, setIsProfileComplete] = useState(true)
+
+  const register = async (userData) => {
+    setIsLoading(true)
+    try {
+      const response = await fetch(`${API_URL}/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(userData),
+        credentials: "include",
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || "Registration failed")
+      }
+
+      // Set as new user before setting userInfo
+      setIsNewUser(true)
+      setUserInfo(data)
+      await AsyncStorage.setItem("userInfo", JSON.stringify(data))
+      
+      setIsLoading(false)
+      return data
+
+    } catch (error) {
+      setIsLoading(false)
+      console.log("Registration error:", error)
+      throw error
+    }
+  }
+
+  // Function to check if profile is complete
+  const checkProfileCompleteness = async (token) => {
+    try {
+      const response = await fetch(`${API_URL}/profile`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      const data = await response.json()
+      
+      if (response.ok) {
+        // Check if any of these fields are null, undefined, or empty string
+        const isComplete = 
+          data.age != null && 
+          data.height != null && 
+          data.current_weight != null && 
+          data.target_weight != null
+
+        setIsProfileComplete(isComplete)
+        return isComplete
+      } else {
+        console.log("Error fetching profile:", data.message)
+        return false
+      }
+    } catch (error) {
+      console.log("Profile check error:", error)
+      return false
+    }
+  }
+
+  // Add the completeQuestionnaire function that was missing
+  const completeQuestionnaire = async () => {
+    try {
+      // Update the isProfileComplete state
+      setIsProfileComplete(true)
+      
+      // We can also store this information locally if needed
+      await AsyncStorage.setItem("profileComplete", "true")
+      
+      return true
+    } catch (error) {
+      console.log("Error completing questionnaire:", error)
+      return false
+    }
+  }
 
   const login = async (username, password) => {
     try {
       setIsLoading(true)
 
-      console.log("Attempting login for:", username)
       const response = await fetch(`${API_URL}/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ username, password }),
-        credentials: "include", // Important for session cookies
       })
 
       const data = await response.json()
-      console.log("Login response status:", response.status)
-      console.log("Login response data:", data)
 
       if (response.ok) {
+        // Store both user info and token
         const info = {
           id: data.user_id,
           username: data.username,
         }
-        console.log("Login successful, user info:", info)
         setUserInfo(info)
+        setUserToken(data.token)
+
+        // Save both to AsyncStorage
         await AsyncStorage.setItem("userInfo", JSON.stringify(info))
-
-        // Store login timestamp
-        await AsyncStorage.setItem("loginTimestamp", Date.now().toString())
-
-        return info
+        await AsyncStorage.setItem("userToken", data.token)
+        
+        // Check if profile is complete
+        const profileComplete = await checkProfileCompleteness(data.token)
+        
+        return {
+          success: true,
+          profileComplete: profileComplete
+        }
       } else {
-        console.log("Login failed:", data.message)
         throw new Error(data.message || "Login failed")
       }
     } catch (error) {
@@ -54,49 +140,27 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  const register = async (userData) => {
-    try {
-      setIsLoading(true)
-
-      const response = await fetch(`${API_URL}/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(userData),
-      })
-
-      const data = await response.json()
-      console.log("Register response:", data)
-
-      if (!response.ok) {
-        throw new Error(data.message || "Registration failed")
-      }
-
-      return data
-    } catch (error) {
-      console.log("Registration error:", error)
-      throw error
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   const logout = async () => {
     try {
       setIsLoading(true)
 
-      // Call the logout endpoint
-      await fetch(`${API_URL}/logout`, {
-        method: "POST",
-        credentials: "include",
-      })
+      // Also call logout endpoint to clear server-side session
+      if (userToken) {
+        await fetch(`${API_URL}/logout`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+          },
+        })
+      }
 
+      // Clear local state
       setUserInfo(null)
-      await AsyncStorage.removeItem("userInfo")
-      await AsyncStorage.removeItem("loginTimestamp")
+      setUserToken(null)
 
-      console.log("User logged out successfully")
+      // Clear storage
+      await AsyncStorage.removeItem("userInfo")
+      await AsyncStorage.removeItem("userToken")
     } catch (error) {
       console.log("Logout error:", error)
     } finally {
@@ -104,73 +168,43 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  // Check if the session is still valid
-  const validateSession = async () => {
+  const isLoggedIn = async () => {
     try {
-      const isValid = await checkSession()
+      setIsLoading(true)
 
-      if (!isValid) {
-        console.log("Session invalid, clearing user info")
-        setUserInfo(null)
-        await AsyncStorage.removeItem("userInfo")
-        return false
+      // Load both user info and token
+      const storedUserInfo = await AsyncStorage.getItem("userInfo")
+      const storedUserToken = await AsyncStorage.getItem("userToken")
+
+      if (storedUserInfo && storedUserToken) {
+        setUserInfo(JSON.parse(storedUserInfo))
+        setUserToken(storedUserToken)
       }
-
-      return true
     } catch (error) {
-      console.log("Session validation error:", error)
-      return false
+      console.log("isLoggedIn error:", error)
+    } finally {
+      setIsLoading(false)
     }
-  }
-
-  // Get the current user ID
-  const getUserId = () => {
-    return userInfo?.id || null
   }
 
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        setIsLoading(true)
-        const storedUserInfo = await AsyncStorage.getItem("userInfo")
-
-        if (storedUserInfo) {
-          const parsedUserInfo = JSON.parse(storedUserInfo)
-          console.log("Found stored user info:", parsedUserInfo)
-
-          // Check if the session is still valid
-          const sessionValid = await validateSession()
-
-          if (sessionValid) {
-            console.log("Session is valid, setting user info")
-            setUserInfo(parsedUserInfo)
-          } else {
-            console.log("Session expired, clearing user info")
-            await AsyncStorage.removeItem("userInfo")
-          }
-        } else {
-          console.log("No stored user info found")
-        }
-      } catch (error) {
-        console.log("Auth initialization error:", error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    initAuth()
+    isLoggedIn()
   }, [])
 
   return (
     <AuthContext.Provider
       value={{
-        login,
         register,
+        login,
         logout,
-        validateSession,
-        getUserId,
         isLoading,
         userInfo,
+        userToken,
+        isNewUser,
+        setIsNewUser,
+        isProfileComplete,
+        checkProfileCompleteness,
+        completeQuestionnaire, // Add the new function to the context
       }}
     >
       {children}

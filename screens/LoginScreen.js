@@ -1,4 +1,4 @@
-import React, { useState, useContext, useRef, useEffect } from 'react';
+import React, { useState, useContext } from 'react';
 import {
   View,
   Text,
@@ -6,59 +6,42 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Modal,
-  Animated,
 } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
 
 const LoginScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
-  const [showError, setShowError] = useState(false);
   const { login, isLoading } = useContext(AuthContext);
-  
-  // Animation for error message
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  
-  useEffect(() => {
-    if (showError) {
-      Animated.sequence([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.delay(3000),
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start(() => setShowError(false));
-    }
-  }, [showError, fadeAnim]);
 
   const handleLogin = async () => {
+    // Form validation
     if (!username || !password) {
-      setErrorMessage('Please fill in all fields');
-      setShowError(true);
+      Alert.alert('Error', 'Please fill in all fields');
       return;
     }
 
     try {
-      await login(username, password);
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Main' }],
-      });
+      const result = await login(username, password);
+      
+      // Check if profile is complete and redirect accordingly
+      if (result.profileComplete) {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Main' }],
+        });
+      } else {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Questionnaire' }],
+        });
+      }
     } catch (error) {
-      console.error('Login error:', error);
-      setErrorMessage(error.message || 'Invalid credentials');
-      setShowError(true);
+      Alert.alert('Login Failed', error.message || 'Invalid credentials');
     }
   };
 
@@ -74,13 +57,6 @@ const LoginScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.formContainer}>
-          {/* Error Message Banner */}
-          {showError && (
-            <Animated.View style={[styles.errorContainer, { opacity: fadeAnim }]}>
-              <Text style={styles.errorText}>{errorMessage}</Text>
-            </Animated.View>
-          )}
-          
           <TextInput
             style={styles.input}
             placeholder="Username or Email"
@@ -119,26 +95,6 @@ const LoginScreen = ({ navigation }) => {
           </View>
         </View>
       </ScrollView>
-
-      {/* Custom Error Modal */}
-      <Modal
-        visible={showError && Platform.OS === 'ios'} // Use modal for iOS as a backup
-        transparent={true}
-        animationType="fade"
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Error</Text>
-            <Text style={styles.modalMessage}>{errorMessage}</Text>
-            <TouchableOpacity 
-              style={styles.modalButton} 
-              onPress={() => setShowError(false)}
-            >
-              <Text style={styles.modalButtonText}>OK</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -201,57 +157,6 @@ const styles = StyleSheet.create({
   registerLink: {
     color: '#E54D2E',
     fontWeight: 'bold',
-  },
-  // Error banner styles
-  errorContainer: {
-    backgroundColor: '#FF6B6B',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 15,
-  },
-  errorText: {
-    color: 'white',
-    textAlign: 'center',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 15,
-    padding: 22,
-    alignItems: 'center',
-    width: '80%',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#E54D2E',
-  },
-  modalMessage: {
-    fontSize: 16,
-    marginBottom: 20,
-    textAlign: 'center',
-    color: '#333',
-  },
-  modalButton: {
-    backgroundColor: '#E54D2E',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-  },
-  modalButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
   },
 });
 
