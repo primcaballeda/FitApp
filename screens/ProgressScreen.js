@@ -37,11 +37,11 @@ const ProgressScreen = ({ userId }) => {
 
   useEffect(() => {
     fetchWeightLogs();
-  }, []); // Remove userId dependency too
+  }, []); 
 
   useEffect(() => {
     const listener = () => {
-      fetchWeightLogs(); // Fetch updated data
+      fetchWeightLogs(); 
     };
 
     eventEmitter.on("weightLogUpdated", listener);
@@ -52,16 +52,14 @@ const ProgressScreen = ({ userId }) => {
   }, []);
 
   const prepareWeightData = () => {
-    // Only prepare chart data when we have at least 2 entries
     if (!weightLogs || weightLogs.length < 2) {
       return null;
     }
 
-    // Sort by newest first and take the last 7 entries
     const sortedLogs = [...weightLogs]
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-      .slice(0, 7) // Take the 7 most recent entries
-      .reverse(); // Reverse for chart display (newest on right)
+      .slice(0, 7) 
+      .reverse(); 
 
     return {
       labels: sortedLogs.map(log => {
@@ -107,7 +105,6 @@ const ProgressScreen = ({ userId }) => {
         <View style={styles.chartContainer}>
           <Text style={styles.chartTitle}>Weight Progress</Text>
           
-          {/* Different UI states based on number of weight logs */}
           {weightLogs.length === 0 && (
             <View style={styles.noDataContainer}>
               <Text style={styles.noDataText}>No weight data available</Text>
@@ -187,7 +184,6 @@ const ProgressScreen = ({ userId }) => {
   );
 };
 
-// Styles (adjusted for mobile-friendliness)
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,

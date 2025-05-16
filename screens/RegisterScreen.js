@@ -25,26 +25,22 @@ const RegisterScreen = ({ navigation }) => {
   const [successCallback, setSuccessCallback] = useState(null);
   const { register, isLoading } = useContext(AuthContext);
 
-  // Custom alert function for React Native
   const showCustomAlert = (title, message, callback = null) => {
     setAlertTitle(title);
     setAlertMessage(message);
     setAlertVisible(true);
     
-    // Store callback for success scenario
     if (title === 'Registration Successful' && callback) {
       setSuccessCallback(() => callback);
     }
   };
 
-  // Handle alert dismiss with possible navigation callback
   const handleAlertDismiss = () => {
     setAlertVisible(false);
     
-    // If this was a success alert and we have a callback, execute it
     if (alertTitle === 'Registration Successful' && successCallback) {
       successCallback();
-      setSuccessCallback(null); // Clear the callback
+      setSuccessCallback(null); 
     }
   };
 
@@ -81,7 +77,7 @@ const RegisterScreen = ({ navigation }) => {
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
-        {/* Custom Alert Modal */}
+      
         <Modal
           animationType="fade"
           transparent={true}

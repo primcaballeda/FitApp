@@ -74,7 +74,6 @@ const HomeScreen = ({ navigation }) => {
 
     loadData();
 
-    // Listen for workout updates
     const handleWorkoutAdded = () => {
       fetchProgress();
       fetchRecentWorkouts();
@@ -104,7 +103,6 @@ const HomeScreen = ({ navigation }) => {
 
   return (
     <ScrollView style={styles.container}>
-      {/* Header Section */}
       <View style={styles.header}>
         <Text style={styles.welcomeText}>Welcome back,</Text>
         <Text style={styles.username}>
@@ -133,7 +131,6 @@ const HomeScreen = ({ navigation }) => {
         </View>
       </View>
 
-      {/* Motivation Section */}
       <View style={styles.motivationCard}>
         <Text style={styles.motivationTitle}>Motivation</Text>
         <Text style={styles.motivationText}>
@@ -142,7 +139,6 @@ const HomeScreen = ({ navigation }) => {
         </Text>
       </View>
 
-      {/* Actions Section */}
       <View style={styles.actionsContainer}>
         <TouchableOpacity
           style={styles.actionButton}
@@ -161,7 +157,6 @@ const HomeScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {/* Weight Progress Section */}
       <View style={styles.weightContainer}>
         <Text style={styles.sectionTitle}>Weight Progress</Text>
         {profile?.current_weight && profile?.target_weight ? (
@@ -217,7 +212,6 @@ const HomeScreen = ({ navigation }) => {
         )}
       </View>
 
-      {/* Recent Workouts Section */}
       <View style={styles.recentContainer}>
         <Text style={styles.sectionTitle}>Recent Workouts</Text>
         {loading ? (
@@ -228,17 +222,14 @@ const HomeScreen = ({ navigation }) => {
             keyExtractor={(item) => item.log_id}
             renderItem={({ item }) => (
               <View style={styles.workoutItem}>
-                {/* Day number displayed prominently at the top */}
                 <Text style={styles.dayNumber}>
                   Day {item.day_number || 1}
                 </Text>
                 
-                {/* Workout name displayed second */}
                 <Text style={styles.workoutName}>
                   {item.workout_name}
                 </Text>
                 
-                {/* Date displayed last */}
                 <Text style={styles.workoutDate}>
                   {formatDate(item.completed_date)}
                 </Text>
@@ -412,7 +403,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 8,
     marginBottom: 8,
-    flexDirection: "column", // Changed from row to column for stacked layout
+    flexDirection: "column", 
   },
   dayNumber: {
     fontSize: 18,
