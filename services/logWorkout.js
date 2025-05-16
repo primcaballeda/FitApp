@@ -2,10 +2,8 @@ import { API_URL } from "../config"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { eventEmitter } from './EventEmitter';
 
-// Fix the token retrieval to be consistent
 const getAuthToken = async () => {
   try {
-    // Use a single token name across the app
     return await AsyncStorage.getItem('userToken');
   } catch (error) {
     console.error('Error getting auth token:', error);
@@ -20,7 +18,6 @@ export const fetchAPI = async (endpoint, options = {}) => {
       ...options.headers,
     }
     
-    // Use the getAuthToken function for consistency
     const token = await getAuthToken();
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
@@ -35,7 +32,6 @@ export const fetchAPI = async (endpoint, options = {}) => {
       credentials: 'include'
     })
 
-    // Try to parse the response as JSON
     let data;
     try {
       data = await response.json();
@@ -56,14 +52,11 @@ export const fetchAPI = async (endpoint, options = {}) => {
   }
 }
 
-// log a batch of workout payload - FIXED version
 export const logWorkoutSession = async (workoutData) => {
   try {
-    // Add debug logging to verify day_number is included
     const firstEntry = workoutData[0] || {};
     console.log("Day number in payload:", firstEntry.day_number);
     
-    // Use fetchAPI instead of direct fetch for consistency
     return await fetchAPI('/workout-sessions', {
       method: 'POST',
       body: JSON.stringify(workoutData)
@@ -72,12 +65,9 @@ export const logWorkoutSession = async (workoutData) => {
     console.error('Error in logWorkoutSession:', error);
     throw error;
   } finally {
-    // Always emit the event regardless of success/failure
     eventEmitter.emit("workoutAdded");
   }
 };
-
-// Get workout logs
 export const getWorkouts = async () => {
   try {
     const data = await fetchAPI("/workout-sessions");
@@ -85,6 +75,6 @@ export const getWorkouts = async () => {
     return data;
   } catch (error) {
     console.error("Error fetching workouts:", error);
-    return []; // Return empty array on error
+    return []; 
   }
 }

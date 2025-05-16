@@ -28,7 +28,6 @@ const LoginScreen = ({ navigation }) => {
     try {
       const result = await login(username, password);
       
-      // Check if profile is complete and redirect accordingly
       if (result.profileComplete) {
         navigation.reset({
           index: 0,

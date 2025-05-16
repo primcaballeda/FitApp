@@ -161,15 +161,12 @@ export const getWorkouts = async () => {
   }
 };
 
-// Weight logging
 export const logWeight = async (weightData) => {
   try {
     console.log("Logging weight data:", weightData);
     
-    // Make sure user_id exists in the payload
     if (!weightData.user_id) {
       console.error("Missing user_id in weight logging data");
-      // Try to get user_id from AsyncStorage if missing
       const userInfoStr = await AsyncStorage.getItem("userInfo");
       if (userInfoStr) {
         const userInfo = JSON.parse(userInfoStr);
@@ -177,15 +174,12 @@ export const logWeight = async (weightData) => {
       }
     }
     
-    // Now proceed with the API call
     return await fetchWithAuth("/weight-logs", {
       method: "POST",
       body: JSON.stringify(weightData),
     });
   } catch (error) {
     console.error("Error in logWeight:", error);
-    // Don't throw here, just log the error and return null
-    // This prevents the error from disrupting the profile update flow
     return null;
   }
 };
@@ -194,16 +188,12 @@ export const getWeightLogs = () => {
   return fetchWithAuth("/weight-logs");
 };
 
-// Progress tracking
 export const getProgress = () => {
   return fetchWithAuth("/progress");
 };
-
-// Log workout sessions with proper day_number field
 export const logWorkoutSession = async (workoutData) => {
   try {
     console.log("Sending workout data:", JSON.stringify(workoutData));
-    // Ensure each workout entry has day_number properly set
     
     return await fetchAPI("/workout-sessions", {
       method: "POST",
@@ -213,12 +203,9 @@ export const logWorkoutSession = async (workoutData) => {
     console.error("Error logging workout session:", error);
     throw error;
   } finally {
-    // Emit event to refresh workouts list
     eventEmitter.emit("workoutAdded");
   }
 };
-
-// Add or update this function
 export const getRecentWorkouts = () => {
   return fetchAPI('/workout-sessions');
 };

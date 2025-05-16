@@ -151,16 +151,14 @@ const ProfileScreen = ({ navigation }) => {
   const handleLogout = () => {
     showConfirmDialog('Logout', 'Are you sure you want to logout?', async () => {
       try {
-        await logout(); // should clear storage/context
+        await logout(); 
         
-        // Check if navigation object exists and has reset method
         if (navigation && navigation.reset) {
           navigation.reset({
             index: 0,
             routes: [{ name: 'Login' }],
           });
         } else if (typeof window !== 'undefined') {
-          // For web, redirect to login page
           window.location.href = '/login';
         }
       } catch (error) {
@@ -197,7 +195,6 @@ const ProfileScreen = ({ navigation }) => {
 
   return (
     <ScrollView style={styles.container}>
-      {/* Custom Alert Modal */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -218,7 +215,6 @@ const ProfileScreen = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* Confirmation Dialog Modal */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -298,7 +294,6 @@ const ProfileScreen = ({ navigation }) => {
             <Ionicons name="chevron-down" size={20} style={styles.dropdownIcon} />
           </TouchableOpacity>
           
-          {/* Gender Dropdown Modal */}
           <Modal
             transparent={true}
             visible={genderDropdownVisible}
@@ -399,7 +394,6 @@ const ProfileScreen = ({ navigation }) => {
             <Ionicons name="chevron-down" size={20} style={styles.dropdownIcon} />
           </TouchableOpacity>
           
-          {/* Fitness Level Dropdown Modal */}
           <Modal
             transparent={true}
             visible={fitnessDropdownVisible}
@@ -479,8 +473,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#E54D2E',
     padding: 20,
     alignItems: 'center',
-    borderBottomLeftRadius: 30, // More pronounced curve
-    borderBottomRightRadius: 30, // More pronounced curve
+    borderBottomLeftRadius: 30, 
+    borderBottomRightRadius: 30, 
     paddingTop: 60,
     paddingBottom: 30,
     shadowColor: "#000",
@@ -491,8 +485,8 @@ const styles = StyleSheet.create({
   },
   profileIconContainer: {
     backgroundColor: 'rgba(255, 238, 156, 0.3)',
-    width: 90, // Slightly larger
-    height: 90, // Slightly larger
+    width: 90, 
+    height: 90, 
     borderRadius: 45,
     justifyContent: 'center',
     alignItems: 'center',
@@ -533,7 +527,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     paddingBottom: 8,
     borderBottomWidth: 2,
-    borderBottomColor: 'rgba(229, 77, 46, 0.2)', // Light version of primary color
+    borderBottomColor: 'rgba(229, 77, 46, 0.2)', 
   },
   inputGroup: {
     marginBottom: 20,

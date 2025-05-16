@@ -146,29 +146,29 @@ const QuestionnaireScreen = ({ navigation, route }) => {
           return false
         }
         return true
-      case 2: // Gender
-        return true // Gender always has a default value
-      case 3: // Height
+      case 2:
+        return true 
+      case 3:
         if (!formData.height || isNaN(Number.parseFloat(formData.height))) {
           showAlert("Error", "Please enter a valid height in cm")
           return false
         }
         return true
-      case 4: // Current weight
+      case 4:
         if (!formData.current_weight || isNaN(Number.parseFloat(formData.current_weight))) {
           showAlert("Error", "Please enter a valid current weight in kg")
           return false
         }
         return true
-      case 5: // Target weight
+      case 5: 
         if (!formData.target_weight || isNaN(Number.parseFloat(formData.target_weight))) {
           showAlert("Error", "Please enter a valid target weight in kg")
           return false
         }
         return true
-      case 6: // Fitness level
-        return true // Fitness level always has a default value
-      case 7: // Name
+      case 6: 
+        return true 
+      case 7:
         if (!formData.name.trim()) {
           showAlert("Error", "Please enter your name")
           return false
@@ -199,7 +199,6 @@ const QuestionnaireScreen = ({ navigation, route }) => {
     try {
       setSaving(true);
 
-      // Convert string values to numbers
       const profileData = {
         name: formData.name,
         age: Number.parseInt(formData.age),
@@ -210,11 +209,9 @@ const QuestionnaireScreen = ({ navigation, route }) => {
         fitness_level: formData.fitness_level,
       };
 
-      // First update the profile
       console.log("Updating profile with data:", profileData);
       await updateUserProfile(userInfo?.id, profileData);
       
-      // Log weight separately and handle potential errors
       try {
         const currentDate = new Date().toISOString().split('T')[0];
         const weightLogData = {
@@ -228,11 +225,9 @@ const QuestionnaireScreen = ({ navigation, route }) => {
         await logWeight(weightLogData);
         console.log("Weight logged successfully");
       } catch (weightLogError) {
-        // Just log the error but continue with flow
         console.error("Error logging weight:", weightLogError);
       }
 
-      // Now proceed with the questionnaire completion
       await handleSubmitQuestionnaire(formData);
     } catch (error) {
       console.error("Profile update error:", error);
@@ -242,18 +237,15 @@ const QuestionnaireScreen = ({ navigation, route }) => {
     }
   };
 
-  // Fix the handleSubmitQuestionnaire function
   const handleSubmitQuestionnaire = async (formData) => {
     try {
-      // Mark the questionnaire as completed using the context function
       await completeQuestionnaire();
       
-      // Show success message
-      showAlert("Success", "Your profile has been updated successfully!", () => {
-        // Navigate to Main screen (which contains HomeScreen as a tab)
+      showAlert("Success", "Your profile has been updated successfully! Please refresh to go back to login.", () => {
+       
         navigation.reset({
           index: 0,
-          routes: [{ name: 'Main' }], // Change 'Home' to 'Main'
+          routes: [{ name: "Main", state: { routes: [{ name: "Home" }] } }],
         });
       });
     } catch (error) {
@@ -303,7 +295,6 @@ const QuestionnaireScreen = ({ navigation, route }) => {
               <Ionicons name="chevron-down" size={20} style={styles.dropdownIcon} />
             </TouchableOpacity>
             
-            {/* Gender Dropdown Modal */}
             <Modal
               transparent={true}
               visible={genderDropdownVisible}
@@ -705,7 +696,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 16,
   },
-  // Updated styles for custom dropdown
   customDropdown: {
     backgroundColor: '#f8f8f8',
     borderRadius: 12,

@@ -23,7 +23,6 @@ import QuestionnaireScreen from "./screens/QuestionnaireScreen"
 const Stack = createStackNavigator()
 const Tab = createBottomTabNavigator()
 
-// Main tab navigator
 const MainTabNavigator = () => {
   return (
     <Tab.Navigator
@@ -56,7 +55,6 @@ const MainTabNavigator = () => {
   )
 }
 
-// Workout stack navigator
 const WorkoutStackNavigator = () => {
   return (
     <Stack.Navigator
